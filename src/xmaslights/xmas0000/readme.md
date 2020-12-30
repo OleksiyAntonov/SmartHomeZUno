@@ -14,11 +14,13 @@
 * [Arduino IDE](https://www.microsoft.com/de-de/p/arduino-ide/9nblggh4rsd8?activetab=pivot:overviewtab) is needed to flash firmware
 * [Visual Studio Code](https://code.visualstudio.com/download) is recommended for the development and debug processes
 * [Microsoft Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16) should be installed on windows to support C compilation/debug process
+* **Visual Studio Code** should be run from "Developer Command Prompt for VS XXXX"
 
 ### Simulation
 
 * Rename local *.ino file to *.cpp file
-* Uncomment #define DEBUG_CONSOLE and comment #undef DEBUG_CONSOLE to run simulation
+* Uncomment ` #define DEBUG_CONSOLE` and comment `#undef DEBUG_CONSOLE` to run simulation
+  * Rolling back both actions before commit changes
 * Console windows should display simulation
 
 ## Known issues
