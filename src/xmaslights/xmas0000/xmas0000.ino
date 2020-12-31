@@ -4,22 +4,25 @@
 		14: PWM2 - lichterkette #LK1
 
 	Z-Wave channels
-		01: turn on/off both
-		02: turn on/off LK#0
-		03: turn on/off LK#1
-		04: time scale
-				- min 0: equal of 50 ms [virtual delay (depends on hw performance)]
-				- max 255: equal of (255 + 1) * 50
-		05: enable flash steps
-		06: light scale for program / max light (default 0xff)
-		07: program id
+		00: [SWITCH_BINARY Instance_1:_Switch_1] turn on/off both
+		01: [SWITCH_BINARY Instance_2:_Switch_2] turn on/off LK#0
+		02: [SWITCH_BINARY Instance_3:_Switch_3] turn on/off LK#1
+		03: [SWITCH_BINARY Instance_4:_Switch_4] enable blink steps
+		04: [SWITCH_MULTILEVEL Instance_1:_Level_1] time scale fine (%)
+				- min 0x00: equal of XX ms [virtual delay (depends on hw performance), XX = param06 * 5 ms]
+				- max 0x63: equal of (0x63 + 0x001) * XX
+		05: [SWITCH_MULTILEVEL Instance_2:_Level_2] time scale rough (%)
+		06: [SWITCH_MULTILEVEL Instance_3:_Level_3] light scale for program / max light (0..99%) (default 0x63)
+				- min 0x00
+				- max 0x63: 100% light, equal 0xFF in program
+		07: [SWITCH_MULTILEVEL Instance_4:_Level_4] program id
 				0: default scheme
 				1: static light (full bright 0xff)
 				2: static light (dim bright 0xff)
 				3: pulse (time scale based)
 */
 
-// #define DEBUG_CONSOLE
+//#define DEBUG_CONSOLE
 #undef DEBUG_CONSOLE
 
 #ifdef DEBUG_CONSOLE
@@ -40,10 +43,11 @@ ZUNO_SETUP_CHANNELS(
 	ZUNO_SWITCH_BINARY(getter_00, setter_00),
 	ZUNO_SWITCH_BINARY(getter_01, setter_01),
 	ZUNO_SWITCH_BINARY(getter_02, setter_02),
-	ZUNO_SWITCH_MULTILEVEL(getter_03, setter_03),
-	ZUNO_SWITCH_BINARY(getter_04, setter_04),
+	ZUNO_SWITCH_BINARY(getter_03, setter_03),
+	ZUNO_SWITCH_MULTILEVEL(getter_04, setter_04),
 	ZUNO_SWITCH_MULTILEVEL(getter_05, setter_05),
-	ZUNO_SWITCH_MULTILEVEL(getter_06, setter_06));
+	ZUNO_SWITCH_MULTILEVEL(getter_06, setter_06),
+	ZUNO_SWITCH_MULTILEVEL(getter_07, setter_07));
 #endif
 
 /*
@@ -54,7 +58,7 @@ ZUNO_SETUP_CHANNELS(
   s_pin channel_01 = 10;
 */
 
-const uint8_t stateOn = 0xff;
+const uint8_t stateOn = 0x01;
 const uint8_t stateOff = 0x00;
 
 /*
@@ -148,15 +152,16 @@ const uint8_t queue_03[] = {
 
 const uint8_t *queue = queue_00;
 
-const uint8_t channelsCount = 7;
+const uint8_t channelsCount = 8;
 uint8_t states[channelsCount] = {
-	0xFF, // turn on by default		[0]
-	0xFF, // turn on lk#01		[1]
-	0xFF, // turn on lk#02		[2]
-	0x01, // time scale			[3]
-	0x00, // flash mode enabled	[4]
-	0xFF, // reserved			[5]
-	0x00, // program id			[6]
+	0x01, // [0] turn on by default
+	0x01, // [1] turn on lk#01
+	0x01, // [2] turn on lk#02
+	0x00, // [3] blink mode enabled
+	0x10, // [4] time scale fine
+	0x02, // [5] time scale rough
+	0x63, // [6] light scale
+	0x00  // [7] program id
 };
 
 /*
@@ -175,11 +180,11 @@ void setState(const uint8_t channelIndex, const BYTE state)
 #endif
 }
 
-void setter_04(BYTE value)
+void setter_03(BYTE value)
 {
-	if (states[4] != value)
+	if (states[3] != value)
 	{
-		setState(4, value);
+		setState(3, value);
 	}
 }
 
@@ -193,7 +198,15 @@ void setter_05(BYTE value)
 
 void setter_06(BYTE value)
 {
-	if ((states[6] != value) & (0 <= value) & (value < 4))
+	if ((states[6] != value) & (0x00 <= value) & (value <= 0x63))
+	{
+		setState(6, value + 0x01);
+	}
+}
+
+void setter_07(BYTE value)
+{
+	if ((states[7] != value) & (0 <= value) & (value < 4))
 	{
 		switch (value)
 		{
@@ -203,10 +216,11 @@ void setter_06(BYTE value)
 		}
 		default:
 		{
-			setter_04(stateOn);
+			// enable blink mode for fixed programs
+			setter_03(stateOn);
 		}
 		}
-		setState(6, value);
+		setState(7, value);
 	}
 }
 
@@ -246,11 +260,11 @@ void setter_02(BYTE value)
 	}
 }
 
-void setter_03(BYTE value)
+void setter_04(BYTE value)
 {
-	if (states[3] != value)
+	if ((states[4] != value) & (0x00 <= value) & (value <= 0x63))
 	{
-		setState(03, value);
+		setState(4, value + 0x01);
 	}
 }
 
@@ -279,43 +293,48 @@ void setter_00(BYTE value)
 			}
 		}
 		}
-		setState(00, value);
+		setState(0, value);
 	}
 }
 
 BYTE getter_00()
 {
-	return getState(00);
+	return getState(0);
 }
 
 BYTE getter_01()
 {
-	return getState(01);
+	return getState(1);
 }
 
 BYTE getter_02()
 {
-	return getState(02);
+	return getState(2);
 }
 
 BYTE getter_03()
 {
-	return getState(03);
+	return getState(3);
 }
 
 BYTE getter_04()
 {
-	return getState(04);
+	return (states[4] - 0x01);
 }
 
 BYTE getter_05()
 {
-	return getState(05);
+	return getState(5);
 }
 
 BYTE getter_06()
 {
-	return getState(06);
+	return (states[6] - 0x01);
+}
+
+BYTE getter_07()
+{
+	return getState(7);
 }
 
 /*
@@ -367,8 +386,9 @@ void setup()
 
 uint8_t scaleBrightness(const uint8_t paramBrightness)
 {
-	return (paramBrightness * states[5]) / 0xFF;
+	return (states[6] * paramBrightness) / 0x64;
 }
+
 void resetSegment()
 {
 	if (++patternIndex >= queueLength)
@@ -382,7 +402,7 @@ void resetSegment()
 }
 
 /*
-  return true if reset to 0 (flashing mode) needed
+  return true if reset to 0 (blinking mode) needed
 */
 bool switchToNextGroup(uint8_t paramAction)
 {
@@ -419,7 +439,8 @@ bool switchToNextGroup(uint8_t paramAction)
 	}
 	else
 	{
-		groupDelay = (paramAction & 0b00111111) * ((uint8_t)states[3] + 1) * 50;
+		uint8_t multiplier = (states[5] == 0 ? 1 : states[5] * 5);
+		groupDelay = (paramAction & 0b00111111) * states[4] * multiplier;
 		patternIndex++;
 		return (paramAction & 0b01000000);
 	}
@@ -521,9 +542,9 @@ void loop()
 	if (states[0] != stateOff)
 	{
 
-		if (programId != states[6])
+		if (programId != states[7])
 		{
-			switch (states[6])
+			switch (states[7])
 			{
 			case 0x00:
 			{
@@ -546,7 +567,7 @@ void loop()
 				break;
 			}
 			}
-			programId = states[6];
+			programId = states[7];
 			resetSegment();
 		}
 		else
@@ -557,7 +578,7 @@ void loop()
 
 				if (patternIndex & 0x01)
 				{
-					if (switchToNextGroup(action) & (states[4] != stateOff))
+					if (switchToNextGroup(action) & (states[3] != stateOff)) //&&&&&
 					{
 						startBrightness = 0;
 					}
